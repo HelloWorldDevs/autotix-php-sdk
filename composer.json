@@ -1,0 +1,43 @@
+{
+  "name": "autotix/php-sdk",
+  "version": "0.1.0",
+  "description": "Shared PHP core for Autotix framework integrations (Drupal, WordPress, Laravel). Wire format, HTTP client, auth, and utilities — framework-agnostic.",
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://autotix.io",
+  "authors": [
+    {
+      "name": "Hello World Devs",
+      "email": "dev@helloworlddevs.com",
+      "homepage": "https://helloworlddevs.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1",
+    "psr/http-client": "^1.0",
+    "psr/http-message": "^1.0 || ^2.0",
+    "psr/log": "^1.1 || ^2.0 || ^3.0"
+  },
+  "require-dev": {
+    "guzzlehttp/guzzle": "^7.0",
+    "phpunit/phpunit": "^10.5 || ^11.0"
+  },
+  "suggest": {
+    "guzzlehttp/guzzle": "Any PSR-18 HTTP client works; Guzzle is the most common (and what Drupal/WP/Laravel ship with)."
+  },
+  "autoload": {
+    "psr-4": {
+      "Autotix\\PhpSdk\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Autotix\\PhpSdk\\Tests\\": "tests/"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true
+  }
+}
