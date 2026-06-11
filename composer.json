@@ -5,6 +5,10 @@
   "type": "library",
   "license": "MIT",
   "homepage": "https://autotix.io",
+  "support": {
+    "source": "https://github.com/HelloWorldDevs/autotix-php-sdk",
+    "issues": "https://github.com/HelloWorldDevs/autotix-php-sdk/issues"
+  },
   "authors": [
     {
       "name": "Hello World Devs",
