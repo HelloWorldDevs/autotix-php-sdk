@@ -1,6 +1,6 @@
 {
   "name": "autotix/php-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared PHP core for Autotix framework integrations (Drupal, WordPress, Laravel). Wire format, HTTP client, auth, and utilities — framework-agnostic.",
   "type": "library",
   "license": "MIT",

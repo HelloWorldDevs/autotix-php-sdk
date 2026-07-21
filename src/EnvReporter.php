@@ -51,6 +51,25 @@ final class EnvReporter
     ) {}
 
     /**
+     * Details of the most recent report() response, or null before any
+     * call.  `stored` distinguishes "accepted" from "declined" — the server
+     * answers 200 with stored:false (+ a human-readable `reason`) when the
+     * customer hasn't enabled Vulnerability Scanning, and host modules
+     * surface that on their status page.
+     *
+     * @var array{status: int, stored: ?bool, reason: ?string, changed: ?bool}|null
+     */
+    private ?array $lastResult = null;
+
+    /**
+     * @return array{status: int, stored: ?bool, reason: ?string, changed: ?bool}|null
+     */
+    public function getLastResult(): ?array
+    {
+        return $this->lastResult;
+    }
+
+    /**
      * Report the environment.  Returns true on a 2xx.
      *
      * @param array{
@@ -96,6 +115,29 @@ final class EnvReporter
 
         $response = $this->httpClient->sendRequest($request);
         $status = $response->getStatusCode();
+
+        // Capture the server's verdict for status pages: a 200 can still be
+        // a decline (stored:false + reason) when the customer hasn't enabled
+        // Vulnerability Scanning. Parse fail-soft — a non-JSON body just
+        // leaves stored/reason null.
+        $decoded = null;
+        try {
+            $decoded = json_decode((string) $response->getBody(), true);
+        } catch (\Throwable) {
+            // ignore — body is optional detail
+        }
+        $this->lastResult = [
+            'status' => $status,
+            'stored' => is_array($decoded) && array_key_exists('stored', $decoded)
+                ? (bool) $decoded['stored']
+                : null,
+            'reason' => is_array($decoded) && isset($decoded['reason'])
+                ? (string) $decoded['reason']
+                : null,
+            'changed' => is_array($decoded) && array_key_exists('changed', $decoded)
+                ? (bool) $decoded['changed']
+                : null,
+        ];
 
         if (!empty($this->config['debug'])) {
             $this->logger?->debug(
