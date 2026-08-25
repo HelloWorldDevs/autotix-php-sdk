@@ -24,12 +24,33 @@ final class WebhookClientTest extends TestCase
     /** Captured request from each $http->sendRequest() call. */
     private ?RequestInterface $sentRequest = null;
 
+    /** Git-context env vars cleared around every test so none leak between them. */
+    private const GIT_ENV = [
+        'AUTOTIX_GIT_PROVIDER', 'AUTOTIX_GIT_PR', 'AUTOTIX_GIT_REF', 'AUTOTIX_GIT_PREVIEW',
+        'TUGBOAT_GITHUB_PR', 'TUGBOAT_GITLAB_MR', 'TUGBOAT_BITBUCKET_PR', 'TUGBOAT_STASH_PR',
+        'TUGBOAT_PREVIEW_REF', 'TUGBOAT_PREVIEW_NAME',
+    ];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->http = $this->createMock(ClientInterface::class);
         $this->factory = new HttpFactory();
         $this->sentRequest = null;
+        $this->clearGitEnv();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->clearGitEnv();
+        parent::tearDown();
+    }
+
+    private function clearGitEnv(): void
+    {
+        foreach (self::GIT_ENV as $name) {
+            putenv($name);
+        }
     }
 
     private function client(array $config = [], ?StateRecorderInterface $recorder = null, ?LoggerInterface $logger = null): WebhookClient
@@ -271,5 +292,89 @@ final class WebhookClientTest extends TestCase
         } catch (\RuntimeException) {
             // Expected.
         }
+    }
+
+    // -------------------------------------------------------------------
+    // Git / PR context detection (Tugboat previews)
+    // -------------------------------------------------------------------
+
+    public function testDetectGitContextReturnsNullOutsideAPreview(): void
+    {
+        $this->assertNull(WebhookClient::detectGitContext());
+    }
+
+    public function testDetectsTugboatGithubPr(): void
+    {
+        putenv('TUGBOAT_GITHUB_PR=42');
+        putenv('TUGBOAT_PREVIEW_REF=feat/widget');
+        putenv('TUGBOAT_PREVIEW_NAME=pr42-widget');
+
+        $this->assertSame(
+            ['provider' => 'github', 'pr' => 42, 'ref' => 'feat/widget', 'preview' => 'pr42-widget'],
+            WebhookClient::detectGitContext(),
+        );
+    }
+
+    public function testDetectsTugboatGitlabMr(): void
+    {
+        putenv('TUGBOAT_GITLAB_MR=7');
+        $git = WebhookClient::detectGitContext();
+        $this->assertSame('gitlab', $git['provider']);
+        $this->assertSame(7, $git['pr']);
+    }
+
+    public function testGenericOverrideWins(): void
+    {
+        putenv('TUGBOAT_GITHUB_PR=42');
+        putenv('AUTOTIX_GIT_PROVIDER=github');
+        putenv('AUTOTIX_GIT_PR=99');
+
+        $git = WebhookClient::detectGitContext();
+        $this->assertSame(99, $git['pr']);
+    }
+
+    public function testIgnoresNonNumericPr(): void
+    {
+        putenv('AUTOTIX_GIT_PROVIDER=github');
+        putenv('AUTOTIX_GIT_PR=not-a-number');
+        $this->assertNull(WebhookClient::detectGitContext());
+    }
+
+    public function testSendAttachesDetectedGitContext(): void
+    {
+        putenv('TUGBOAT_GITHUB_PR=42');
+        $this->captureRequest();
+        $this->client()->send(['source' => 'wordpress', 'message' => 'boom']);
+
+        $payload = json_decode((string) $this->sentRequest->getBody(), true);
+        $this->assertSame(
+            ['provider' => 'github', 'pr' => 42],
+            $payload['details']['git'],
+        );
+    }
+
+    public function testSendDoesNotOverwriteCallerGitContext(): void
+    {
+        putenv('TUGBOAT_GITHUB_PR=42');
+        $this->captureRequest();
+        $this->client()->send([
+            'message' => 'x',
+            'details' => ['git' => ['provider' => 'github', 'pr' => 7]],
+        ]);
+
+        $payload = json_decode((string) $this->sentRequest->getBody(), true);
+        $this->assertSame(7, $payload['details']['git']['pr']);
+    }
+
+    public function testSendLeavesPayloadUntouchedOutsideAPreview(): void
+    {
+        $this->captureRequest();
+        $payload = ['source' => 'drupal', 'message' => 'hello'];
+        $this->client()->send($payload);
+
+        $this->assertSame(
+            $payload,
+            json_decode((string) $this->sentRequest->getBody(), true),
+        );
     }
 }
